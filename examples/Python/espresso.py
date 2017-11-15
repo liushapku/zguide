@@ -5,7 +5,7 @@
 import time
 
 from random import randint
-from string import uppercase
+from string import ascii_uppercase as uppercase
 from threading import Thread
 
 import zmq
@@ -16,17 +16,21 @@ from zhelpers import zpipe
 # The subscriber thread requests messages starting with
 # A and B, then reads and counts incoming messages.
 
-def subscriber_thread():
+def subscriber_thread(topics, count, delay=None):
     ctx = zmq.Context.instance()
+
+    if delay:
+        time.sleep(delay)
 
     # Subscribe to "A" and "B"
     subscriber = ctx.socket(zmq.SUB)
     subscriber.connect("tcp://localhost:6001")
-    subscriber.setsockopt(zmq.SUBSCRIBE, b"A")
-    subscriber.setsockopt(zmq.SUBSCRIBE, b"B")
+    for topic in topics:
+        subscriber.setsockopt(zmq.SUBSCRIBE, topic.encode())
 
+    target_count = count
     count = 0
-    while True:
+    while count < target_count:
         try:
             msg = subscriber.recv_multipart()
         except zmq.ZMQError as e:
@@ -35,6 +39,8 @@ def subscriber_thread():
             else:
                 raise
         count += 1
+
+    subscriber.close()
 
     print ("Subscriber received %d messages" % count)
 
@@ -51,7 +57,7 @@ def publisher_thread():
     while True:
         string = "%s-%05d" % (uppercase[randint(0,10)], randint(0,100000))
         try:
-            publisher.send(string)
+            publisher.send(string.encode())
         except zmq.ZMQError as e:
             if e.errno == zmq.ETERM:
                 break           # Interrupted
@@ -65,9 +71,12 @@ def publisher_thread():
 # pipe. Here, the pipe is a pair of ZMQ_PAIR sockets that connects
 # attached child threads via inproc. In other languages your mileage may vary:
 
-def listener_thread (pipe):
+def listener_thread ():
 
     # Print everything that arrives on pipe
+    ctx = zmq.Context.instance()
+    pipe = ctx.socket(zmq.PAIR)
+    pipe.bind('inproc://listener')
     while True:
         try:
             print (pipe.recv_multipart())
@@ -85,11 +94,13 @@ def main ():
     # Start child threads
     ctx = zmq.Context.instance()
     p_thread = Thread(target=publisher_thread)
-    s_thread = Thread(target=subscriber_thread)
+    s_thread = Thread(target=subscriber_thread, args=(['A', 'B'], 20))
+    s_thread2 = Thread(target=subscriber_thread, args=(['A', 'C'], 20, 2))
     p_thread.start()
     s_thread.start()
+    s_thread2.start()
 
-    pipe = zpipe(ctx)
+    # pipe = zpipe(ctx)
 
     subscriber = ctx.socket(zmq.XSUB)
     subscriber.connect("tcp://localhost:6000")
@@ -97,11 +108,15 @@ def main ():
     publisher = ctx.socket(zmq.XPUB)
     publisher.bind("tcp://*:6001")
 
-    l_thread = Thread(target=listener_thread, args=(pipe[1],))
+    # l_thread = Thread(target=listener_thread, args=(pipe[1],))
+    l_thread = Thread(target=listener_thread)
     l_thread.start()
 
+    listener = ctx.socket(zmq.PAIR)
+    listener.connect('inproc://listener')
     try:
-        monitored_queue(subscriber, publisher, pipe[0], 'pub', 'sub')
+        monitored_queue(subscriber, publisher, listener, b'pub', b'sub')
+        # monitored_queue(subscriber, publisher, pipe[0], b'pub', b'sub')
     except KeyboardInterrupt:
         print ("Interrupted")
 
