@@ -57,18 +57,22 @@ class KVMsg(object):
         else:
             size = len(self.body)
             data=repr(self.body)
-        print >> sys.stderr, "[seq:{seq}][key:{key}][size:{size}] {data}".format(
+        print("[seq:{seq}][key:{key}][size:{size}] {data}".format(
             seq=self.sequence,
             key=self.key,
             size=size,
             data=data,
-        )
+        ), file=sys.stderr)
 
+def dump_all(kvmap, filename):
+    with open(filename, 'w') as fp:
+        for key, val in sorted(kvmap.items(), key=lambda x: x[1].sequence):
+            print(key, val.key, '{:9d}'.format(val.sequence), val.body, file=fp)
 # ---------------------------------------------------------------------
 # Runs self test of class
 
 def test_kvmsg (verbose):
-    print " * kvmsg: ",
+    print (" * kvmsg: ",)
 
     # Prepare our context and sockets
     ctx = zmq.Context()
@@ -80,8 +84,8 @@ def test_kvmsg (verbose):
     kvmap = {}
     # Test send and receive of simple message
     kvmsg = KVMsg(1)
-    kvmsg.key = "key"
-    kvmsg.body = "body"
+    kvmsg.key = b"key"
+    kvmsg.body = b"body"
     if verbose:
         kvmsg.dump()
     kvmsg.send(output)
@@ -90,12 +94,12 @@ def test_kvmsg (verbose):
     kvmsg2 = KVMsg.recv(input)
     if verbose:
         kvmsg2.dump()
-    assert kvmsg2.key == "key"
+    assert kvmsg2.key == b"key"
     kvmsg2.store(kvmap)
 
     assert len(kvmap) == 1 # shouldn't be different
 
-    print "OK"
+    print( "OK")
 
 if __name__ == '__main__':
     test_kvmsg('-v' in sys.argv)

@@ -6,7 +6,7 @@ Author: Min RK <benjaminrk@gmail.com
 
 import zmq
 
-from kvsimple import KVMsg
+from kvsimple import KVMsg, dump_all
 
 # simple struct for routing information for a key-value snapshot
 class Route:
@@ -49,17 +49,17 @@ def main():
             kvmsg.sequence = sequence
             kvmsg.send(publisher)
             kvmsg.store(kvmap)
-            print "I: publishing update %5d" % sequence
+            print("I: publishing update %5d" % sequence)
 
         # Execute state snapshot request
         if snapshot in items:
             msg = snapshot.recv_multipart()
             identity = msg[0]
             request = msg[1]
-            if request == "ICANHAZ?":
+            if request == b"ICANHAZ?":
                 pass
             else:
-                print "E: bad request, aborting\n",
+                print("E: bad request, aborting\n",)
                 break
 
             # Send state snapshot to client
@@ -70,14 +70,15 @@ def main():
                 send_single(k,v,route)
 
             # Now send END message with sequence number
-            print "Sending state shapshot=%d\n" % sequence,
+            print("Sending state shapshot=%d\n" % sequence,)
             snapshot.send(identity, zmq.SNDMORE)
             kvmsg = KVMsg(sequence)
-            kvmsg.key = "KTHXBAI"
-            kvmsg.body = ""
+            kvmsg.key = b"KTHXBAI"
+            kvmsg.body = b""
             kvmsg.send(snapshot)
 
-    print " Interrupted\n%d messages handled" % sequence
+    print(" Interrupted\n%d messages handled" % sequence)
+    dump_all(kvmap, 'pub.txt')
 
 
 if __name__ == '__main__':

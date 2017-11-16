@@ -9,7 +9,7 @@ import time
 
 import zmq
 
-from kvsimple import KVMsg
+from kvsimple import KVMsg, dump_all
 
 def main():
 
@@ -20,7 +20,7 @@ def main():
     snapshot.connect("tcp://localhost:5556")
     subscriber = ctx.socket(zmq.SUB)
     subscriber.linger = 0
-    subscriber.setsockopt(zmq.SUBSCRIBE, '')
+    subscriber.setsockopt(zmq.SUBSCRIBE, b'')
     subscriber.connect("tcp://localhost:5557")
     publisher = ctx.socket(zmq.PUSH)
     publisher.linger = 0
@@ -31,16 +31,16 @@ def main():
 
     # Get state snapshot
     sequence = 0
-    snapshot.send("ICANHAZ?")
+    snapshot.send(b"ICANHAZ?")
     while True:
         try:
             kvmsg = KVMsg.recv(snapshot)
         except:
             return          # Interrupted
 
-        if kvmsg.key == "KTHXBAI":
+        if kvmsg.key == b"KTHXBAI":
             sequence = kvmsg.sequence
-            print "I: Received snapshot=%d" % sequence
+            print("I: Received snapshot=%d" % sequence)
             break          # Done
         kvmsg.store(kvmap)
 
@@ -53,6 +53,8 @@ def main():
         try:
             items = dict(poller.poll(tickless))
         except:
+            print('cli3 quitting')
+            dump_all(kvmap, 'pub.txt')
             break           # Interrupted
 
         if subscriber in items:
@@ -62,18 +64,18 @@ def main():
             if kvmsg.sequence > sequence:
                 sequence = kvmsg.sequence
                 kvmsg.store(kvmap)
-                print "I: received update=%d" % sequence
+                print("I: received update=%d" % sequence)
 
         # If we timed-out, generate a random kvmsg
         if time.time() >= alarm:
             kvmsg = KVMsg(0)
-            kvmsg.key = "%d" % random.randint(1,10000)
-            kvmsg.body = "%d" % random.randint(1,1000000)
+            kvmsg.key = ("%d" % random.randint(0,9999)).encode()
+            kvmsg.body = ("%d" % random.randint(0,999999)).encode()
             kvmsg.send(publisher)
             kvmsg.store(kvmap)
             alarm = time.time() + 1.
 
-    print " Interrupted\n%d messages in" % sequence
+    print(" Interrupted\n%d messages in" % sequence)
 
 if __name__ == '__main__':
     main()

@@ -8,8 +8,9 @@ import threading
 import time
 
 import zmq
+import struct
 
-from kvsimple import KVMsg
+from kvsimple import KVMsg, dump_all
 from zhelpers import zpipe
 
 def main():
@@ -21,7 +22,7 @@ def main():
     updates, peer = zpipe(ctx)
 
     manager_thread = threading.Thread(target=state_manager, args=(ctx,peer))
-    manager_thread.daemon=True
+    # manager_thread.daemon=True
     manager_thread.start()
 
 
@@ -33,12 +34,15 @@ def main():
             # Distribute as key-value message
             sequence += 1
             kvmsg = KVMsg(sequence)
-            kvmsg.key = "%d" % random.randint(1,10000)
-            kvmsg.body = "%d" % random.randint(1,1000000)
+            kvmsg.key = ("%6d" % random.randint(0,9999)).encode()
+            kvmsg.body = ("%4d" % random.randint(0,999999)).encode()
             kvmsg.send(publisher)
             kvmsg.send(updates)
+            time.sleep(0.01)
     except KeyboardInterrupt:
-        print " Interrupted\n%d messages out" % sequence
+        updates.send_multipart([b'QUIT'])
+        manager_thread.join()
+        print(" Interrupted\n%d messages out" % sequence)
 
 # simple struct for routing information for a key-value snapshot
 class Route:
@@ -60,7 +64,7 @@ def state_manager(ctx, pipe):
     """This thread maintains the state and handles requests from clients for snapshots.
     """
     kvmap = {}
-    pipe.send("READY")
+    pipe.send(b"READY")
     snapshot = ctx.socket(zmq.ROUTER)
     snapshot.bind("tcp://*:5556")
 
@@ -73,11 +77,24 @@ def state_manager(ctx, pipe):
         try:
             items = dict(poller.poll())
         except (zmq.ZMQError, KeyboardInterrupt):
+            dump_all(kvmap, 'pub.txt')
+            print('pub: interrupted')
             break # interrupt/context shutdown
 
         # Apply state update from main thread
         if pipe in items:
-            kvmsg = KVMsg.recv(pipe)
+            parts = pipe.recv_multipart()
+            if len(parts) == 1:
+                assert parts[0] == b'QUIT'
+                print('quitting')
+                dump_all(kvmap, 'pub.txt')
+                break
+            key, seq_s, body = parts
+            key = key if key else None
+            seq = struct.unpack('!l',seq_s)[0]
+            body = body if body else None
+            kvmsg = KVMsg(seq, key=key, body=body)
+
             sequence = kvmsg.sequence
             kvmsg.store(kvmap)
         # Execute state snapshot request
@@ -85,10 +102,10 @@ def state_manager(ctx, pipe):
             msg = snapshot.recv_multipart()
             identity = msg[0]
             request = msg[1]
-            if request == "ICANHAZ?":
+            if request == b"ICANHAZ?":
                 pass
             else:
-                print "E: bad request, aborting\n",
+                print("E: bad request, aborting\n",)
                 break
 
             # Send state snapshot to client
@@ -99,12 +116,13 @@ def state_manager(ctx, pipe):
                 send_single(k,v,route)
 
             # Now send END message with sequence number
-            print "Sending state shapshot=%d\n" % sequence,
+            print("Sending state shapshot=%d\n" % sequence,)
             snapshot.send(identity, zmq.SNDMORE)
             kvmsg = KVMsg(sequence)
-            kvmsg.key = "KTHXBAI"
-            kvmsg.body = ""
+            kvmsg.key = b"KTHXBAI"
+            kvmsg.body = b""
             kvmsg.send(snapshot)
+
 
 if __name__ == '__main__':
     main()

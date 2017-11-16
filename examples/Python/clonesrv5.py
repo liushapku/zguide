@@ -7,9 +7,12 @@ Author: Min RK <benjaminrk@gmail.com
 import logging
 import time
 
-import zmq
-from zmq.eventloop.ioloop import IOLoop, PeriodicCallback
-from zmq.eventloop.zmqstream import ZMQStream
+# import zmq
+import zmq.green as zmq
+from zmq.green.eventloop.ioloop import IOLoop, PeriodicCallback
+from zmq.green.eventloop.zmqstream import ZMQStream
+
+# print(zmq.eventloop.ioloop)
 
 from kvmsg import KVMsg
 from zhelpers import dump

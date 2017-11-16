@@ -9,9 +9,9 @@ import time
 
 import zmq
 
-from kvsimple import KVMsg
+from kvsimple import KVMsg, dump_all
 
-SUBTREE = "/client/"
+SUBTREE = b"/client/"
 
 def main():
 
@@ -33,7 +33,7 @@ def main():
 
     # Get state snapshot
     sequence = 0
-    snapshot.send_multipart(["ICANHAZ?", SUBTREE])
+    snapshot.send_multipart([b"ICANHAZ?", SUBTREE])
     while True:
         try:
             kvmsg = KVMsg.recv(snapshot)
@@ -41,9 +41,9 @@ def main():
             raise
             return          # Interrupted
 
-        if kvmsg.key == "KTHXBAI":
+        if kvmsg.key == b"KTHXBAI":
             sequence = kvmsg.sequence
-            print "I: Received snapshot=%d" % sequence
+            print("I: Received snapshot=%d" % sequence)
             break          # Done
         kvmsg.store(kvmap)
 
@@ -65,18 +65,19 @@ def main():
             if kvmsg.sequence > sequence:
                 sequence = kvmsg.sequence
                 kvmsg.store(kvmap)
-                print "I: received update=%d" % sequence
+                print("I: received update=%d" % sequence)
 
         # If we timed-out, generate a random kvmsg
         if time.time() >= alarm:
             kvmsg = KVMsg(0)
-            kvmsg.key = SUBTREE + "%d" % random.randint(1,10000)
-            kvmsg.body = "%d" % random.randint(1,1000000)
+            kvmsg.key = SUBTREE + ("%d" % random.randint(1,10000)).encode()
+            kvmsg.body = ("%d" % random.randint(1,1000000)).encode()
             kvmsg.send(publisher)
             kvmsg.store(kvmap)
             alarm = time.time() + 1.
 
-    print " Interrupted\n%d messages in" % sequence
+    print(" Interrupted\n%d messages in" % sequence)
+    dump_all(kvmap, 'sub.txt')
 
 if __name__ == '__main__':
     main()

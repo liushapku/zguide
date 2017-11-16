@@ -9,7 +9,7 @@ import time
 
 import zmq
 
-from kvsimple import KVMsg
+from kvsimple import KVMsg, dump_all
 
 def main():
 
@@ -20,23 +20,23 @@ def main():
     snapshot.connect("tcp://localhost:5556")
     subscriber = ctx.socket(zmq.SUB)
     subscriber.linger = 0
-    subscriber.setsockopt(zmq.SUBSCRIBE, '')
+    subscriber.setsockopt(zmq.SUBSCRIBE, b'')
     subscriber.connect("tcp://localhost:5557")
 
     kvmap = {}
 
     # Get state snapshot
     sequence = 0
-    snapshot.send("ICANHAZ?")
+    snapshot.send(b"ICANHAZ?")
     while True:
         try:
             kvmsg = KVMsg.recv(snapshot)
         except:
             break;          # Interrupted
 
-        if kvmsg.key == "KTHXBAI":
+        if kvmsg.key == b"KTHXBAI":
             sequence = kvmsg.sequence
-            print "Received snapshot=%d" % sequence
+            print("Received snapshot=%d" % sequence)
             break          # Done
         kvmsg.store(kvmap)
 
@@ -49,6 +49,10 @@ def main():
         if kvmsg.sequence > sequence:
             sequence = kvmsg.sequence
             kvmsg.store(kvmap)
+        else:
+            print('dropped duplicates', kvmsg.sequence)
+    print('quiting')
+    dump_all(kvmap, 'sub.txt')
 
 if __name__ == '__main__':
     main()

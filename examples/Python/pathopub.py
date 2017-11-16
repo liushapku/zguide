@@ -10,6 +10,7 @@ from random import randint
 
 import zmq
 
+ntopic = 10
 def main(url=None):
     ctx = zmq.Context.instance()
     publisher = ctx.socket(zmq.PUB)
@@ -21,7 +22,7 @@ def main(url=None):
     time.sleep(1)
 
     # Send out all 1,000 topic messages
-    for topic_nbr in range(1000):
+    for topic_nbr in range(ntopic):
         publisher.send_multipart([
             b"%03d" % topic_nbr,
             b"Save Roger",
@@ -32,11 +33,11 @@ def main(url=None):
         try:
             time.sleep(1)
             publisher.send_multipart([
-                b"%03d" % randint(0,999),
+                b"%03d" % randint(0,ntopic-1),
                 b"Off with his head!",
             ])
         except KeyboardInterrupt:
-            print "interrupted"
+            print ("interrupted")
             break
 
 if __name__ == '__main__':

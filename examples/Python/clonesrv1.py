@@ -8,7 +8,7 @@ import time
 
 import zmq
 
-from kvsimple import KVMsg
+from kvsimple import KVMsg, dump_all
 
 def main():
     # Prepare our context and publisher socket
@@ -27,12 +27,15 @@ def main():
             # Distribute as key-value message
             sequence += 1
             kvmsg = KVMsg(sequence)
-            kvmsg.key = "%d" % random.randint(1,10000)
-            kvmsg.body = "%d" % random.randint(1,1000000)
+            kvmsg.key = ("%4d" % random.randint(0,9999)).encode()
+            kvmsg.body = ("%6d" % random.randint(0,999999)).encode()
             kvmsg.send(publisher)
             kvmsg.store(kvmap)
+            time.sleep(0.1)
     except KeyboardInterrupt:
-        print " Interrupted\n%d messages out" % sequence
+        print (" Interrupted\n%d messages out" % sequence)
+        dump_all(kvmap, 'pub.txt')
+
 
 if __name__ == '__main__':
     main()

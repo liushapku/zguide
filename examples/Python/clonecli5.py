@@ -11,7 +11,7 @@ import zmq
 
 from kvmsg import KVMsg
 
-SUBTREE = "/client/"
+SUBTREE = b"/client/"
 
 def main():
 
@@ -22,7 +22,7 @@ def main():
     snapshot.connect("tcp://localhost:5556")
     subscriber = ctx.socket(zmq.SUB)
     subscriber.linger = 0
-    subscriber.setsockopt(zmq.SUBSCRIBE, SUBTREE.encode())
+    subscriber.setsockopt(zmq.SUBSCRIBE, SUBTREE)
     subscriber.connect("tcp://localhost:5557")
     publisher = ctx.socket(zmq.PUSH)
     publisher.linger = 0
@@ -33,7 +33,7 @@ def main():
 
     # Get state snapshot
     sequence = 0
-    snapshot.send_multipart(["ICANHAZ?", SUBTREE.encode()])
+    snapshot.send_multipart([b"ICANHAZ?", SUBTREE])
     while True:
         try:
             kvmsg = KVMsg.recv(snapshot)
@@ -71,8 +71,8 @@ def main():
         # If we timed-out, generate a random kvmsg
         if time.time() >= alarm:
             kvmsg = KVMsg(0)
-            kvmsg.key = SUBTREE + b"%d" % random.randint(1,10000)
-            kvmsg.body = b"%d" % random.randint(1,1000000)
+            kvmsg.key = SUBTREE + ("%d" % random.randint(1,10000)).encode()
+            kvmsg.body = ("%d" % random.randint(1,1000000)).encode()
             kvmsg[b'ttl'] = random.randint(0,30)
             kvmsg.send(publisher)
             kvmsg.store(kvmap)
