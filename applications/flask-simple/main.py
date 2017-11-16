@@ -9,6 +9,8 @@ from geventwebsocket.handler import WebSocketHandler
 import gevent.pool
 import gevent.queue
 from flask_socketio import SocketIO
+import jsonrpc.backend.flask as jsonrpc
+import zerorpc
 # import socketio
 globalpool = gevent.pool.Pool(1000)
 
@@ -354,6 +356,18 @@ def handle_gevent():
     gevent.spawn(get_links_from_url, baseurl).link(finished) #.link(finished)
     return Response(generator,  mimetype='text/html')
 
+
+# jsonrpc
+# invoke as: webapi#jsonrpc#call('http://localhost:port/jsonrpc/', 'jsonrpc_test_method', {'a':1, 'b': 2}, 3)
+app.register_blueprint(jsonrpc.api.as_blueprint(), url_prefix='/jsonrpc')
+@jsonrpc.api.dispatcher.add_method
+def jsonrpc_test_method(*args, **kwargs):
+    return args, kwargs
+# invoke as: webapi#jsonrpc#call('http://localhost:port/jsonrpc/', 'my_add', [1,2], 3)
+# or webapi#jsonrpc#call('http://localhost:port/jsonrpc/', 'my_add', {'x': 1, 'y': 2}, 3)
+@jsonrpc.api.dispatcher.add_method
+def my_add(x, y):
+    return x+y
 
 
 @app.after_request
