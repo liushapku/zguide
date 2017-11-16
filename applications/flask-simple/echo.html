@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block inhead %}
+    <script type="text/javascript" src="{{ url_for('static', filename='echo.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<textarea id="message" name="message" cols="30" rows="10"></textarea>
+<br/>
+<button id="sendbutton">Send</button>
+<button id="closebutton">Close</button>
+<br/>
+<div id="output"><div/>
+{% endblock %}

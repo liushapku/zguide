@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block inhead %}
+    <script type="text/javascript" src="{{ url_for('static', filename='zmqsub.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<button id="closebutton">Close</button>
+<br/>
+<div id="output"><div/>
+{% endblock %}

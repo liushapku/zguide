@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div>
+        <h3>Request Args</h3>
+        {% for key, val in request_arg.items() %}
+        <strong>{{key}}</strong>
+        <span>{{val}}</span><br/>
+        {% endfor %}
+    </div>
+{% endblock %}
+

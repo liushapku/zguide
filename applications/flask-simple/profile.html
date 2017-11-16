@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block inhead %}
+{% if username == current_user.name %}
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.3/socket.io.js"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='app.js') }}"></script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if username == current_user.name %}
+<h3>Hello, {{current_user.name}}</h3>
+<div>Last visited at: {% if last_visited %}{{last_visited}}{% endif %}</div>
+<div>Current time   : {{ current_time }}</div>
+    {% for post in posts[username] %}
+    <div><p>{{ post.author.name|up }} says: <b>{{ post.body }}</b></p></div>
+    {% endfor %}
+    <input type="text" id="receiverbox"/>
+    <input type="text" id="messagebox"/>
+    <button id="sendbutton">Send Message</button>
+    <br/><br/>
+    <button id="fetchbutton">Fetch</button>
+
+    <br/>
+    <textarea readonly id="fetchbox" name="Text1" cols="90" rows="20"></textarea>
+{% else %}
+<h3>{{current_user.name}}: you are not allowed to see {{username}}'s profile</h3>
+{% endif %}
+{% endblock %}
