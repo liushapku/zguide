@@ -1,5 +1,6 @@
 import zmq.green as zmq
 from zmq.green.eventloop.ioloop import IOLoop, PeriodicCallback
+# from zmq.green.eventloop.future import Context
 from zmq.green.eventloop.zmqstream import ZMQStream
 from gevent import monkey
 from gevent import pywsgi
@@ -10,7 +11,6 @@ import gevent.pool
 import gevent.queue
 from flask_socketio import SocketIO
 import jsonrpc.backend.flask as jsonrpc
-import zerorpc
 # import socketio
 globalpool = gevent.pool.Pool(1000)
 
@@ -256,6 +256,58 @@ def handle_zmqsub_message():
                 break
     except geventwebsocket.WebSocketError as ex:
         print('exception ', type(ex), ex)
+    finally:
+        print('zmqsub closed')
+        subscriber.close()
+        ws.close()
+    return ''
+
+@app.route('/zmqsub/stream')
+def handle_zmqsub_stream():
+    # print()
+    print(request.environ)
+    ws = request.environ.get('wsgi.websocket')
+    # raw socket: ws.stream.handler.socket._sock : type stdlib socket
+    rawsock = ws.stream.handler.socket._sock
+    if ws is None:
+        flask.abort(404)
+    try:
+        event = gevent.event.Event()
+        def receive():
+            if ws.receive() is None:  # client closed
+                event.set()
+        globalpool.spawn(receive)
+        context    = zmq.Context.instance()
+        subscriber = context.socket(zmq.SUB)
+        subscriber.connect("tcp://localhost:5563")
+        subscriber.setsockopt(zmq.SUBSCRIBE, b"B")
+        [address, contents] = subscriber.recv_multipart()
+        message = "{} ".format(time.asctime()) + (b"[%s] %s" % (address, contents)).decode()
+        # pdb.set_trace()
+
+        print('===zmqsub:', message)
+        # pdb.set_trace()
+
+        stream = ZMQStream(subscriber)
+        future = F
+        def on_recv(multipart_msg):
+            print('=============')
+            address, contents = multipart_msg
+            message = "{} ".format(time.asctime()) + (b"[%s] %s" % (address, contents)).decode()
+            print('zmqsub:', message)
+            if not event.is_set():
+                print('about to send')
+                ws.send(message)
+            else:
+                pass
+                # stream.stop_on_recv()
+                # stream.close()
+        stream.on_recv = on_recv
+        event.wait()
+    except geventwebsocket.WebSocketError as ex:
+        print('exception ', type(ex), ex)
+    except Exception as ex:
+        print('Exception ', ex)
     finally:
         print('zmqsub closed')
         subscriber.close()
