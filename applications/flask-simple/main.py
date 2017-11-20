@@ -224,6 +224,7 @@ def handle_zmqsub():
 
 @app.route('/zmqsub/channel')
 def handle_zmqsub_message():
+    # NOTE: remember to run `python zmqpub.py` to start publisher
     # print()
     print(request.environ)
     ws = request.environ.get('wsgi.websocket')
@@ -232,28 +233,26 @@ def handle_zmqsub_message():
     if ws is None:
         flask.abort(404)
     try:
-        event = gevent.event.Event()
-        def receive():
-            if ws.receive() is None:  # client closed
-                event.set()
-        globalpool.spawn(receive)
+        def ws_receive():
+            if ws.receive() is None:
+                pass
+        wsthread = globalpool.spawn(ws_receive)
         context    = zmq.Context.instance()
         subscriber = context.socket(zmq.SUB)
         subscriber.connect("tcp://localhost:5563")
         subscriber.setsockopt(zmq.SUBSCRIBE, b"B")
-        while True:  # need to put in a inf loop otherwise, the connection will be closed
-
+        # need to put in a inf loop otherwise, the connection will be closed
+        while True:
             # Read envelope with address
             [address, contents] = subscriber.recv_multipart()
             message = "{} ".format(time.asctime()) + (b"[%s] %s" % (address, contents)).decode()
             # pdb.set_trace()
 
             print('zmqsub:', message)
-            # if ws is not None:
-            if not event.is_set():
-                ws.send(message)
-            else:
+            if wsthread.ready():
                 break
+            else:
+                ws.send(message)
     except geventwebsocket.WebSocketError as ex:
         print('exception ', type(ex), ex)
     finally:
@@ -265,45 +264,32 @@ def handle_zmqsub_message():
 @app.route('/zmqsub/stream')
 def handle_zmqsub_stream():
     # print()
-    print(request.environ)
     ws = request.environ.get('wsgi.websocket')
     # raw socket: ws.stream.handler.socket._sock : type stdlib socket
     rawsock = ws.stream.handler.socket._sock
     if ws is None:
         flask.abort(404)
-    try:
-        event = gevent.event.Event()
-        def receive():
-            if ws.receive() is None:  # client closed
-                event.set()
-        globalpool.spawn(receive)
-        context    = zmq.Context.instance()
-        subscriber = context.socket(zmq.SUB)
-        subscriber.connect("tcp://localhost:5563")
-        subscriber.setsockopt(zmq.SUBSCRIBE, b"B")
-        [address, contents] = subscriber.recv_multipart()
+    context    = zmq.Context.instance()
+    subscriber = context.socket(zmq.SUB)
+    subscriber.connect("tcp://localhost:5563")
+    subscriber.setsockopt(zmq.SUBSCRIBE, b"B")
+    ioloop = IOLoop()
+    stream = ZMQStream(subscriber, ioloop)
+    def on_recv(msg):
+        address, contents = msg
         message = "{} ".format(time.asctime()) + (b"[%s] %s" % (address, contents)).decode()
-        # pdb.set_trace()
-
         print('===zmqsub:', message)
-        # pdb.set_trace()
+        ws.send(message)
+    stream.on_recv(on_recv)
 
-        stream = ZMQStream(subscriber)
-        future = F
-        def on_recv(multipart_msg):
-            print('=============')
-            address, contents = multipart_msg
-            message = "{} ".format(time.asctime()) + (b"[%s] %s" % (address, contents)).decode()
-            print('zmqsub:', message)
-            if not event.is_set():
-                print('about to send')
-                ws.send(message)
-            else:
-                pass
-                # stream.stop_on_recv()
-                # stream.close()
-        stream.on_recv = on_recv
-        event.wait()
+    def ws_receive():
+        ws.receive()
+        ioloop.stop()
+
+    try:
+        globalpool.spawn(ws_receive)
+        ioloop.start()
+
     except geventwebsocket.WebSocketError as ex:
         print('exception ', type(ex), ex)
     except Exception as ex:
